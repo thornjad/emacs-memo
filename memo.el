@@ -41,6 +41,13 @@
 ;;
 ;;    (memo-defun 100 some-expensive-function (n)
 ;;      ...body)
+;;
+;; `memo-restore-function' accepts a symbol of a function which was replaced by
+;; `memo-replace' and restores the original non-memoized function.
+;;
+;; `memo-reset-function-cache' accepts a memoized function symbol and an
+;; optional timeout (as specified above) and replaces the function with a
+;; version with an empty cache.
 
 ;; Limitations:
 ;;
@@ -163,14 +170,34 @@ Also returns the now-memoized function definition, for good measure."
   (put func 'function-documentation (get func :memo-original-documentation))
   (put func ':memo-original-documentation nil))
 
-(defmacro memo-defun (name args &rest body)
-  "Create a memoized function, using NAME, ARGS and BODY with `defun' syntax."
-  ;; Internally, since `memo' requires a function symbol, we first define the
-  ;; function, then memoize it. The intermediate func is lost and so the user is
-  ;; none-the-wiser.
+(defun memo-reset-function-cache (func &optional timeout)
+  "Reset FUNC's memoization cache with TIMEOUT.
+
+WARNING: If FUNC was not already memoized, this function will memoize it without
+the ability to restore the original.
+
+If TIMEOUT is non-nil, it specifies the cache invalidation time for the memoized
+function. The syntax is the same as for `run-at-time', except that if TIMEOUT is
+0, the cache will have no invalidation time. Be careful as this can cause memory
+leaks. If TIMEOUT is nil, `memo-default-cache-timeout' will be used instead.
+
+WARNING: If TIMEOUT is nil, the default `memo-default-cache-timeout' will be
+used, not the function's original timeout."
+  (memo-replace func timeout t))
+
+(defmacro memo-defun (timeout name args &rest body)
+  "Create memoized func with TIMEOUT using NAME, ARGS, BODY with `defun' syntax.
+
+If TIMEOUT is non-nil, it specifies the cache invalidation time for the memoized
+function. The syntax is the same as for `run-at-time', except that if TIMEOUT is
+0, the cache will have no invalidation time. Be careful as this can cause memory
+leaks. If TIMEOUT is nil, `memo-default-cache-timeout' will be used instead.
+
+NAME, ARGS and BODY are used to define the function with the same syntax as
+`defun'."
   (declare (indent defun) (doc-string 3) (debug defun))
   `(progn (defun ,name ,args ,@body)
-          (memo (quote ,name))))
+          (memo-replace (quote ,name) timeout t)))
 
 (provide 'memo)
 

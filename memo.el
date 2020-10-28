@@ -120,7 +120,7 @@ Returns the memoized clone of FUNC."
             ;; if there's no cached val, execute func and store result
             (or value (puthash args (apply func args) cache))
           (let ((existing-timer (gethash args timeouts))
-                (new-timeout (or (when (numberp timeout) timeout)
+                (new-timeout (or timeout
                                  memo-default-cache-timeout
                                  0)))
             ;; override any existing timeout for these args

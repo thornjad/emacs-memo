@@ -3,29 +3,43 @@
 ;; Author: Jade Michael Thornton
 ;; Copyright (c) 2020 Jade Michael Thornton
 ;; URL: https://gitlab.com/thornjad/emacs-memo
-;; Version: 0.9.0
+;; Version: 0.1.0
 ;;
 ;; This file is not part of GNU Emacs
 
 ;;; Commentary:
 ;;
+;; [![ISC License](https://img.shields.io/badge/license-ISC-green.svg)](./LICENSE) [![](https://img.shields.io/github/languages/code-size/thornjad/emacs-memo.svg)](https://gitlab.com/thornjad/emacs-memo) [![](https://img.shields.io/github/v/tag/thornjad/emacs-memo.svg?label=version&color=yellowgreen)](https://gitlab.com/thornjad/emacs-memo/-/tags)
+;;
 ;; Memo provides easy-to-use macros and functions to memoize other functions.
 
 ;; Usage:
 ;;
-;; `memo' accepts a function symbol and returns a memoized version of the
+;; All of the "creation" functions, `memo-clone', `memo-replace' and
+;; `memo-defun' accept a TIMEOUT parameter. If TIMEOUT is non-nil, it specifies
+;; the cache invalidation time for the memoized function. The syntax is the same
+;; as for `run-at-time', except that if TIMEOUT is 0, the cache will have no
+;; invalidation time. Be careful as this can cause memory leaks. If TIMEOUT is
+;; nil, `memo-default-cache-timeout' will be used instead.
+;;
+;; Provided functions and macros:
+;;
+;; `memo-clone' accepts a function symbol and returns a memoized version of the
 ;; function. Example:
 ;;
-;;    (memo #'some-expensive-function) => memoized version of some-expensive-func
+;;    (setq memoized-expensive-func (memo #'some-expensive-function))
 ;;
 ;; `memo-replace' accepts a function symbol and _replaces_ the symbol's
 ;; function definition with a memoized version. The original function is
-;; retained and can be restored with `memo-restore-function'.
+;; retained and can be restored with `memo-restore-function'. An optional third
+;; parameter, FORGET-ORIGINAL, if non-nil will not retain the original function.
+;; This can be useful for saving space when you know you won't need to restore
+;; it.
 ;;
 ;; `memo-defun' defines a memoized function. The syntax is the same as for
-;; `defun':
+;; `defun', except that the first parameter is a TIMEOUT as specified above:
 ;;
-;;    (memo-defun some-expensive-function (n)
+;;    (memo-defun 100 some-expensive-function (n)
 ;;      ...body)
 
 ;; Limitations:
@@ -64,25 +78,31 @@
 ;; performance of this software.
 
 ;;; Code:
-;; TODO should have a way to clear cache without restoring functions.
-(defvar memo-default-cache-timeout nil
-  "Time after which a memoization is invalidated.
-Any non-nil value represents the time after the last use of a memoization, after
-which the value in the cache is invalidated. Subsequent uses of the memoized
-functions will be fully recacalculated and entered into the cache anew.
 
-A nil value represents an infinite cache time. This is the default, but can be
-misused to cause memory leaks.")
+(defvar memo-default-cache-timeout 60
+  "Time after which a cached entry is invalidated.
+If this value is an integer, it is interpreted as seconds.
 
-;; TODO ensure the old function is really gone?
-(defun memo (func &optional timeout)
-  "Create a memoized version of FUNC with an optional cache TIMEOUT.
+If non-nil, this value represents the amount of time for which to retain a cache
+value, after which the entry will be invalidated. Subsequent uses of memoized
+functions will then be fully recalculated and entered into the cache anew.
+
+The format for this value is the same as for `run-at-time', except that if the
+value is 0 or nil, the cache will have an infinite cache time. This can cause
+memory leaks if used improperly.
+
+The default cache time is 60 seconds.")
+
+(defun memo-clone (func &optional timeout)
+  "Create a memoized clone of FUNC with an optional cache TIMEOUT.
 Given a FUNC symbol, returns a memoized version of that function.
 
-If TIMEOUT is a number, it specifies the cache invalidation time for the
-memoized function. If TIMEOUT is 0, the cache will be infinite, which may cause
-memory leaks. If TIMEOUT is nil or not a number, `memo-default-cache-timeout'
-will be used."
+If TIMEOUT is non-nil, it specifies the cache invalidation time for the memoized
+function. The syntax is the same as for `run-at-time', except that if TIMEOUT is
+0, the cache will have no invalidation time. Be careful as this can cause memory
+leaks. If TIMEOUT is nil, `memo-default-cache-timeout' will be used instead.
+
+Returns the memoized clone of FUNC."
   (let ((cache (make-hash-table :test 'equal))
         (timeouts (make-hash-table :test 'equal)))
     (lambda (&rest args)
@@ -104,16 +124,21 @@ will be used."
                                          (lambda () (remhash args cache)))
                        timeouts))))))))
 
-(defun memo-replace (func &optional timeout)
+(defun memo-replace (func &optional timeout forget-original)
   "Replace function FUNC with a memoized version with TIMEOUT.
 The function definition for the symbol FUNC will be swapped for a memoized
 version. The non-memoized version will be retained and can be restored with
 `memo-restore-function'.
 
-If TIMEOUT is a number, it specifies the cache invalidation time for the
-memoized function. If TIMEOUT is 0, the cache will be infinite, which may cause
-memory leaks. If TIMEOUT is nil or not a number, `memo-default-cache-timeout'
-will be used.
+If TIMEOUT is non-nil, it specifies the cache invalidation time for the memoized
+function. The syntax is the same as for `run-at-time', except that if TIMEOUT is
+0, the cache will have no invalidation time. Be careful as this can cause memory
+leaks. If TIMEOUT is nil, `memo-default-cache-timeout' will be used instead.
+
+If FORGET-ORIGINAL is non-nil, do not save the original non-memoized function
+definition. The resulting function cannot be restored by
+`memo-restore-function'. This option will avoid unnecessary memory usage when
+restoration will not be needed.
 
 It is an error to attempt to `memo-replace' the same function more than once,
 since this doesn't really make sense.

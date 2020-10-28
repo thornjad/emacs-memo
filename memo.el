@@ -186,6 +186,7 @@ WARNING: If TIMEOUT is nil, the default `memo-default-cache-timeout' will be
 used, not the function's original timeout."
   (memo-replace func timeout t))
 
+;; TODO can we use cl to get :timeout into a tag format?
 (defmacro memo-defun (timeout name args &rest body)
   "Create memoized func with TIMEOUT using NAME, ARGS, BODY with `defun' syntax.
 
@@ -198,7 +199,7 @@ NAME, ARGS and BODY are used to define the function with the same syntax as
 `defun'."
   (declare (indent defun) (doc-string 3) (debug defun))
   `(progn (defun ,name ,args ,@body)
-          (memo-replace (quote ,name) timeout t)))
+          (memo-replace (quote ,name) ,timeout t)))
 
 (provide 'memo)
 

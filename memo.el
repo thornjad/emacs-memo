@@ -154,11 +154,12 @@ Also returns the now-memoized function definition, for good measure."
   (when (get func :memo-original-function)
     (user-error "%s is already memoized" func))
   (let ((doc (documentation func)))
-    (put func :memo-original-documentation doc)
+    (unless forget-original
+      (put func :memo-original-documentation doc)
+      (put func :memo-original-function (symbol-function func)))
     (put func 'function-documentation
-         (concat doc "\n\nThis function has been memoized. See `memo-replace' to see how it was done.")))
-  (put func :memo-original-function (symbol-function func))
-  (fset func (memo func timeout)))
+         (concat doc "\n\nThis function is memoized by `memo-replace'.")))
+  (fset func (memo-clone func timeout)))
 
 (defun memo-restore-function (func)
   "Restore the original version of the memoized FUNC."
